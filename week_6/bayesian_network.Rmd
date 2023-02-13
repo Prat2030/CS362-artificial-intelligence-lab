@@ -1,0 +1,138 @@
+---
+output:
+  pdf_document: 
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+  html_document: default
+---
+# Team : We Showed Up
+## Team Members : 
+- Nitya Patel (202051129)
+- Prathak Garg (202051144)
+- Pratyush Agrawal(202051145)
+- Prince Rakholiya (202051147)
+
+
+
+## Libraries Used : 
+```{r message=FALSE, warning=FALSE}
+library(bnlearn)    # for bayesian network
+library(bnclassify) # application based algorithms for bayesian network classifiers (like predictions,accuracy,etc.)
+library(dplyr)      # data manipulation (similar to pandas in python)
+library(ggplot2)    # creating the plots (similar to matplotlib in python)
+library(graph)      # creates graphical models
+```
+
+## Problem 1
+Consider grades earned in each of the courses as random variables and learn the dependencies between courses.
+
+First we read the data into R.
+```{r message=FALSE, warning=FALSE}
+course.grades<-read.table("2020_bn_nb_data.txt",head=TRUE)
+head(course.grades)
+```
+
+We now get dependencies between the courses.
+```{r message=FALSE, warning=FALSE}
+course.grades<- lapply(course.grades,as.factor)
+course.grades<- data.frame(course.grades)
+course.grades.net<- hc(course.grades[,-9], score='k2')
+plot(course.grades.net)
+```
+
+## Problem 2
+Using the data, learn the CPTs for each course node.
+
+The first argument, "course.grades.net", is a pre-specified network structure or graphical model that defines the relationships between variables in the dataset. The second argument, "course.grades[,-9]", is the **data** used to estimate the parameters of the model, excluding the 9th column.
+```{r message=FALSE, warning=FALSE}
+course.grades.fit <- bn.fit(course.grades.net,course.grades[,-9])
+course.grades.fit
+```
+
+
+Let us visualise these a little bit.
+
+For each of the variables in the model, the corresponding CPT is passed as an argument to the "bn.fit.barchart" function, creating a bar chart that visually represents the **probability distribution** of the variable given its parents in the network.
+```{r message=FALSE, warning=FALSE}
+bn.fit.barchart(course.grades.fit$EC100)
+bn.fit.barchart(course.grades.fit$EC160)
+bn.fit.barchart(course.grades.fit$IT101)
+bn.fit.barchart(course.grades.fit$IT161)
+bn.fit.barchart(course.grades.fit$MA101)
+bn.fit.barchart(course.grades.fit$PH100)
+bn.fit.barchart(course.grades.fit$PH160)
+```
+
+
+## Problem 3
+What grade will a student get in PH100 if he earns DD in EC100, CC in IT101 and CD in MA101.
+
+It creates a data frame containing the **marginal probability distribution** of "PH100" given specific values for its parent variables "EC100", "IT101", and "MA101". The **cpdist** function from the bnlearn library is used to calculate the marginal probabilities based on the fitted model. The "nodes" argument specifies the target node, which is "PH100", and the "evidence" argument specifies the values of its parent variables.
+
+Next we are using the dplyr library to group the data frame "course.grades.PH100" by the "PH100" variable and to summarize the counts of each value of "PH100". The resulting data frame is stored in the object "df".
+```{r message=FALSE, warning=FALSE}
+course.grades.PH100 <- data.frame( cpdist(course.grades.fit, nodes = c("PH100"),evidence = ( (EC100=="DD") & (IT101=="CC") &( MA101== "CD"))))
+
+df <- course.grades.PH100 %>%
+  group_by(PH100) %>%
+  summarise(counts = n())
+```
+
+Here we are using the ggplot2 library to create a bar plot of the summarized data. The ggplot function takes the "df" data frame as its data argument, and the "aes" function specifies that the x-axis should represent the "PH100" variable and the y-axis should represent the "counts". The "geom_bar" function creates the bar plot with a blue fill color, and the "geom_text" function adds the count values as labels to the bars. The "vjust" argument adjusts the vertical position of the labels to avoid overlapping with the bars.
+```{r message=FALSE, warning=FALSE}
+ggplot(df, aes(x = PH100, y = counts)) +
+  geom_bar(fill = "#0073C2FF", stat = "identity") +
+  geom_text(aes(label = counts), vjust = -0.3) 
+```
+
+
+
+## Problem 4
+The last column in the data file indicates whether
+a student qualifies for an internship program or not.
+From the given data, take 70 percent data for training,
+and build a naive Bayes classifier (considering that
+the grades earned in different courses are independent
+of each other) which takes in the student’s performance
+and returns the qualification status with a probability.
+Test your classifier on the remaining 30 percent data.
+<!-- Repeat this experiment for 20 random selection of
+training and testing data. Report results about the
+accuracy of your classifier. -->
+
+Let us split the data first.
+```{r message=FALSE, warning=FALSE}
+set.seed(101)
+sample <-  sample.int(n = nrow(course.grades), size = floor(0.7*nrow(course.grades)), replace=F)
+course.grades.train <-course.grades[sample,]
+course.grades.test<- course.grades[-sample,]
+```
+
+Let us create a classifier based of Bayesian System.
+```{r message=FALSE, warning=FALSE}
+nb.grades <- nb(class="QP", dataset=course.grades.train)
+plot(nb.grades)
+```
+
+Training the classifier.
+```{r message=FALSE, warning=FALSE}
+nb.grades <- lp(nb.grades,course.grades.train, smooth=0)
+nb.grades$.params
+```
+
+Testing the classifier.
+```{r message=FALSE, warning=FALSE}
+p <- predict(nb.grades,course.grades.test)
+cm <- table(predicted_on_test_data=p, actual_data=course.grades.test$QP)
+cm
+```
+
+Evaluating results.
+```{r message=FALSE, warning=FALSE}
+bnclassify:::accuracy(p, course.grades.test$QP)
+```
+
+## References :
+- https://github.com/TanmayAmbadkar/CS302-AI
+
